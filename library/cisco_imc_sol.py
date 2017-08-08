@@ -151,7 +151,7 @@ def setup_module(server, module):
     else:
         if module.check_mode or not exists:
             return exists
-        sol_disable(server, name=mo.name)
+        sol_disable(server)
     return True
 
 
