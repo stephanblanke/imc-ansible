@@ -83,7 +83,7 @@ def _argument_mo():
         speed=dict(
             type='str',
             choices=["9600", "19200", "38400", "57600", "115200"]),
-        com_port=dict(
+        comport=dict(
             type='str',
             choices=["com0", "com1"]),
         ssh_port=dict(
@@ -136,23 +136,22 @@ def _get_mo_params(params):
 
 
 def setup_module(server, module):
-    from imcsdk.apis.server.remotepresence import sol_enable
-    from imcsdk.apis.server.remotepresence import sol_disable
-    from imcsdk.apis.server.remotepresence import sol_exists
+    from imcsdk.apis.server.sol import sol_enable
+    from imcsdk.apis.server.sol import sol_disable
+    from imcsdk.apis.server.sol import sol_exists
 
     ansible = module.params
     args_mo = _get_mo_params(ansible)
+    exists, mo = sol_exists(handle=server, **args_mo)
 
     if ansible["state"] == "present":
-        exists, mo = sol_exists(handle=server, **args_mo)
         if module.check_mode or exists:
             return not exists
         sol_enable(handle=server, **args_mo)
     else:
-        exists, mo = sol_exists(handle=server, name=args_mo['name'])
         if module.check_mode or not exists:
             return exists
-        sol_disable(server, name=args_mo['name'])
+        sol_disable(server, name=mo.name)
     return True
 
 
@@ -164,7 +163,7 @@ def setup(server, module):
         result["changed"] = setup_module(server, module)
     except Exception as e:
         err = True
-        result["msg"] = "setup error: %s " % str(e)
+        result["msg"] = "setup error: %s" % str(e)
         result["changed"] = False
 
     return result, err
