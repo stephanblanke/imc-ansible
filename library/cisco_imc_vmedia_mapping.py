@@ -27,34 +27,53 @@ ANSIBLE_METADATA = {'metadata_version': '1.0',
 
 DOCUMENTATION = '''
 ---
-module: cisco_imc_boot_order_precision
-short_description: Sets boot order precision for a Cisco IMC server.
+module: cisco_imc_vmedia_mapping
+short_description: Mounts vMedia on a Cisco IMC server
 version_added: "2.4"
 description:
-  - Sets boot order precision for a Cisco IMC server
+    - Adds and Removes vMedia mapping on a Cisco IMC server
 Input Params:
-  boot_devices:
-    description: dictionary {"order":"", "device-type": "", "name":""}
-    required: true
+    state:
+        description:
+         - if C(present), adds vMedia mapping
+         - if C(absent), removed vMedia mapping
+        choices: ['present', 'absent']
+        default: "present"
 
-  configured_boot_mode:
-    description: Configure boot mode
-    default: False
-    choices: ["Legacy", "None", "Uefi"]
+    volume_name:
+        description: volume name
+        required: true
 
-  reapply:
-    description: Configure reapply
-    default: "no"
-    choices: ["yes", "no"]
+    remote_share:
+        description: remote share address
+        required: true
 
-  reboot_on_update:
-    description: Enable reboot on update
-    default: "no"
-    choices: ["yes", "no"]
+    remote_file:
+        description: remote file name
+        required: true
 
-  server_id:
-    description: Specify server id for UCS C3260 modular servers
-    default: 1
+    map:
+        description: mount protocol
+        choices: ["cifs", "nfs", "www"]
+        default: "www"
+
+    mount_options:
+        description: mount options
+        default: "nolock"
+
+    username:
+        description: username for remote share
+
+    password:
+        description: password for remote share
+
+    server_id:
+        description: Server Id to be specified for C3260 platforms
+        default: 1
+
+    timeout:
+        description: waits for the timeout seconds for mapping to finish
+        default: 60
 
 requirements:
     - 'imcsdk'
@@ -66,12 +85,14 @@ author: "Cisco Systems Inc(ucs-python@cisco.com)"
 
 
 EXAMPLES = '''
-- name: Set the boot order precision
-  cisco_imc_boot_order_precision:
-    boot_devices:
-      - {"order":"1", "device-type":"hdd", "name":"hdd"}
-      - {"order":"2", "device-type":"pxe", "name":"pxe"}
-      - {"order":"3", "device-type":"pxe", "name":"pxe2"}
+- name: create vmedia mapping
+  cisco_imc_vmedia_mapping:
+    volume_name: c
+    remote_share: http://1.1.1.1/files/
+    remote_file: ubuntu-14.04.2-server-amd64.iso
+    map: www
+    mount_options: nolock
+    state: present
     ip: "192.168.1.1"
     username: "admin"
     password: "password"
@@ -82,23 +103,41 @@ RETURN = ''' # '''
 
 def _argument_mo():
     return dict(
-        boot_devices=dict(
+        volume_name=dict(
             required=True,
-            type='list'),
-        configured_boot_mode=dict(
+            type='str'),
+        remote_share=dict(
+            required=True,
+            type='str'),
+        remote_file=dict(
+            required=True,
+            type='str'),
+        map=dict(
             type='str',
-            choices=["Legacy", "None", "Uefi"],
-            default="Legacy"),
-        reapply=dict(
+            choices=["cifs", "nfs", "www"],
+            default="www"),
+        mount_options=dict(
             type='str',
-            choices=["yes", "no"],
-            default="no"),
-        reboot_on_update=dict(
+            default="nolock"),
+        username=dict(
             type='str',
-            choices=["yes", "no"],
-            default="no"),
+            default=""),
+        password=dict(
+            type='str',
+            default="",
+            no_log=True),
         server_id=dict(type='int',
                        default=1),
+        timeout=dict(type='int',
+                       default=60),
+    )
+
+
+def _argument_custom():
+    return dict(
+        state=dict(default="present",
+                   choices=['present', 'absent'],
+                   type='str'),
     )
 
 
@@ -120,6 +159,7 @@ def _argument_connection():
 def _ansible_module_create():
     argument_spec = dict()
     argument_spec.update(_argument_mo())
+    argument_spec.update(_argument_custom())
     argument_spec.update(_argument_connection())
 
     return AnsibleModule(argument_spec,
@@ -136,17 +176,24 @@ def _get_mo_params(params):
 
 
 def setup_module(server, module):
-    from imcsdk.apis.server.boot import boot_order_precision_set
-    from imcsdk.apis.server.boot import boot_order_precision_exists
+    from imcsdk.apis.server.vmedia import vmedia_mount_create
+    from imcsdk.apis.server.vmedia import vmedia_mount_delete
+    from imcsdk.apis.server.vmedia import vmedia_mount_exists
 
     ansible = module.params
     args_mo = _get_mo_params(ansible)
-    exists, mo = boot_order_precision_exists(handle=server, **args_mo)
+    exists, mo = vmedia_mount_exists(handle=server, **args_mo)
 
-    if module.check_mode or exists:
-        return not exists
-    boot_order_precision_set(handle=server, **args_mo)
-
+    if ansible["state"] == "present":
+        if module.check_mode or exists:
+            return not exists
+        vmedia_mount_create(handle=server, **args_mo)
+    else:
+        if module.check_mode or not exists:
+            return exists
+        vmedia_mount_delete(server,
+                            args_mo['volume_name'],
+                            args_mo['server_id'])
     return True
 
 

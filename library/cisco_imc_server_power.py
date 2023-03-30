@@ -27,34 +27,32 @@ ANSIBLE_METADATA = {'metadata_version': '1.0',
 
 DOCUMENTATION = '''
 ---
-module: cisco_imc_boot_order_precision
-short_description: Sets boot order precision for a Cisco IMC server.
+module: cisco_imc_server_power
+short_description: Performs power operation on a Cisco IMC server
 version_added: "2.4"
 description:
-  - Sets boot order precision for a Cisco IMC server
+    - Power on, off, cycle or gracefully shutdown the Cisco IMC server
 Input Params:
-  boot_devices:
-    description: dictionary {"order":"", "device-type": "", "name":""}
-    required: true
+    state:
+        description:
+         - if C(on), power on the server
+         - if C(off), shutdown the server
+         - if C(graceful-down), gracefully shutdown the server
+         - if C(cycle), powercycle the server
+        required: true
+        choices: ['on', 'off', 'graceful-down', 'cycle']
 
-  configured_boot_mode:
-    description: Configure boot mode
-    default: False
-    choices: ["Legacy", "None", "Uefi"]
+    timeout:
+        description: timeout in seconds
+        default: 60
 
-  reapply:
-    description: Configure reapply
-    default: "no"
-    choices: ["yes", "no"]
+    interval:
+        description: interval in seconds
+        default: 5
 
-  reboot_on_update:
-    description: Enable reboot on update
-    default: "no"
-    choices: ["yes", "no"]
-
-  server_id:
-    description: Specify server id for UCS C3260 modular servers
-    default: 1
+    server_id:
+        description: Server Id to be specified for C3260 platforms
+        default: 1
 
 requirements:
     - 'imcsdk'
@@ -66,15 +64,14 @@ author: "Cisco Systems Inc(ucs-python@cisco.com)"
 
 
 EXAMPLES = '''
-- name: Set the boot order precision
-  cisco_imc_boot_order_precision:
-    boot_devices:
-      - {"order":"1", "device-type":"hdd", "name":"hdd"}
-      - {"order":"2", "device-type":"pxe", "name":"pxe"}
-      - {"order":"3", "device-type":"pxe", "name":"pxe2"}
+- name: power on the server
+  cisco_imc_server_power:
+    timeout: 60
+    interval: 10
     ip: "192.168.1.1"
     username: "admin"
     password: "password"
+    state: on
 '''
 
 RETURN = ''' # '''
@@ -82,23 +79,24 @@ RETURN = ''' # '''
 
 def _argument_mo():
     return dict(
-        boot_devices=dict(
+        timeout=dict(
+            type='int',
+            default=60),
+        interval=dict(
+            type='int',
+            default=5),
+        server_id=dict(
+            type='int',
+            default=1),
+    )
+
+
+def _argument_custom():
+    return dict(
+        state=dict(
             required=True,
-            type='list'),
-        configured_boot_mode=dict(
             type='str',
-            choices=["Legacy", "None", "Uefi"],
-            default="Legacy"),
-        reapply=dict(
-            type='str',
-            choices=["yes", "no"],
-            default="no"),
-        reboot_on_update=dict(
-            type='str',
-            choices=["yes", "no"],
-            default="no"),
-        server_id=dict(type='int',
-                       default=1),
+            choices=['on', 'off', 'graceful-down', 'cycle'])
     )
 
 
@@ -120,6 +118,7 @@ def _argument_connection():
 def _ansible_module_create():
     argument_spec = dict()
     argument_spec.update(_argument_mo())
+    argument_spec.update(_argument_custom())
     argument_spec.update(_argument_connection())
 
     return AnsibleModule(argument_spec,
@@ -136,18 +135,26 @@ def _get_mo_params(params):
 
 
 def setup_module(server, module):
-    from imcsdk.apis.server.boot import boot_order_precision_set
-    from imcsdk.apis.server.boot import boot_order_precision_exists
+    from imcsdk.apis.server.serveractions import server_power_up
+    from imcsdk.apis.server.serveractions import server_power_down
+    from imcsdk.apis.server.serveractions import server_power_down_gracefully
+    from imcsdk.apis.server.serveractions import server_power_cycle
 
     ansible = module.params
     args_mo = _get_mo_params(ansible)
-    exists, mo = boot_order_precision_exists(handle=server, **args_mo)
+    state = ansible["state"]
 
-    if module.check_mode or exists:
-        return not exists
-    boot_order_precision_set(handle=server, **args_mo)
+    if state == "on":
+        mo, changed = server_power_up(server, **args_mo)
+    elif state == "off":
+        mo, changed = server_power_down(server, **args_mo)
+    elif state == "graceful-down":
+        mo, changed = server_power_down_gracefully(server, **args_mo)
+    elif state == "cycle":
+        mo, changed = server_power_cycle(server, **args_mo)
 
-    return True
+    if module.check_mode or changed:
+        return changed
 
 
 def setup(server, module):
@@ -158,7 +165,7 @@ def setup(server, module):
         result["changed"] = setup_module(server, module)
     except Exception as e:
         err = True
-        result["msg"] = "setup error: %s " % str(e)
+        result["msg"] = "setup error: %s" % str(e)
         result["changed"] = False
 
     return result, err

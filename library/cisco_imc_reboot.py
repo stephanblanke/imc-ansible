@@ -27,34 +27,15 @@ ANSIBLE_METADATA = {'metadata_version': '1.0',
 
 DOCUMENTATION = '''
 ---
-module: cisco_imc_boot_order_precision
-short_description: Sets boot order precision for a Cisco IMC server.
+module: cisco_imc_reboot
+short_description: Reboots CIMC
 version_added: "2.4"
 description:
-  - Sets boot order precision for a Cisco IMC server
+    - Reboot CIMC
 Input Params:
-  boot_devices:
-    description: dictionary {"order":"", "device-type": "", "name":""}
-    required: true
-
-  configured_boot_mode:
-    description: Configure boot mode
-    default: False
-    choices: ["Legacy", "None", "Uefi"]
-
-  reapply:
-    description: Configure reapply
-    default: "no"
-    choices: ["yes", "no"]
-
-  reboot_on_update:
-    description: Enable reboot on update
-    default: "no"
-    choices: ["yes", "no"]
-
-  server_id:
-    description: Specify server id for UCS C3260 modular servers
-    default: 1
+    timeout:
+        description: wait until timeout seconds to reboot
+        default: 15 * 60
 
 requirements:
     - 'imcsdk'
@@ -66,12 +47,9 @@ author: "Cisco Systems Inc(ucs-python@cisco.com)"
 
 
 EXAMPLES = '''
-- name: Set the boot order precision
-  cisco_imc_boot_order_precision:
-    boot_devices:
-      - {"order":"1", "device-type":"hdd", "name":"hdd"}
-      - {"order":"2", "device-type":"pxe", "name":"pxe"}
-      - {"order":"3", "device-type":"pxe", "name":"pxe2"}
+- name: reboot cimc
+  cisco_imc_reboot:
+    timeout: 10*60
     ip: "192.168.1.1"
     username: "admin"
     password: "password"
@@ -82,23 +60,9 @@ RETURN = ''' # '''
 
 def _argument_mo():
     return dict(
-        boot_devices=dict(
-            required=True,
-            type='list'),
-        configured_boot_mode=dict(
-            type='str',
-            choices=["Legacy", "None", "Uefi"],
-            default="Legacy"),
-        reapply=dict(
-            type='str',
-            choices=["yes", "no"],
-            default="no"),
-        reboot_on_update=dict(
-            type='str',
-            choices=["yes", "no"],
-            default="no"),
-        server_id=dict(type='int',
-                       default=1),
+        timeout=dict(
+            type='int',
+            default=15*60)
     )
 
 
@@ -136,18 +100,12 @@ def _get_mo_params(params):
 
 
 def setup_module(server, module):
-    from imcsdk.apis.server.boot import boot_order_precision_set
-    from imcsdk.apis.server.boot import boot_order_precision_exists
+    from imcsdk.apis.server.serveractions import cimc_reboot
 
     ansible = module.params
     args_mo = _get_mo_params(ansible)
-    exists, mo = boot_order_precision_exists(handle=server, **args_mo)
 
-    if module.check_mode or exists:
-        return not exists
-    boot_order_precision_set(handle=server, **args_mo)
-
-    return True
+    return cimc_reboot(handle=server, **args_mo)
 
 
 def setup(server, module):

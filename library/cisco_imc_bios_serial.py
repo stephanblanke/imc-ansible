@@ -27,34 +27,43 @@ ANSIBLE_METADATA = {'metadata_version': '1.0',
 
 DOCUMENTATION = '''
 ---
-module: cisco_imc_boot_order_precision
-short_description: Sets boot order precision for a Cisco IMC server.
+module: cisco_imc_bios_serial
+short_description: Configures BIOS serial on a Cisco IMC server
 version_added: "2.4"
 description:
-  - Sets boot order precision for a Cisco IMC server
+    - Configures the serial configuration of BIOS on a Cisco IMC server
 Input Params:
-  boot_devices:
-    description: dictionary {"order":"", "device-type": "", "name":""}
-    required: true
+    vp_console_redirection:
+        description: console redirection
+        choices: ["com-0", "com-1", "disabled"]
 
-  configured_boot_mode:
-    description: Configure boot mode
-    default: False
-    choices: ["Legacy", "None", "Uefi"]
+    vp_terminal_type:
+        description: terminal type
+        choices: ["pc-ansi", "platform-default", "vt-utf8", "vt100", "vt100-plus"]
 
-  reapply:
-    description: Configure reapply
-    default: "no"
-    choices: ["yes", "no"]
+    vp_baud_rate:
+        description: baud rate (bits per second)
+        choices: ["115200", "19200", "38400", "57600", "9600"]
 
-  reboot_on_update:
-    description: Enable reboot on update
-    default: "no"
-    choices: ["yes", "no"]
+    vp_flow_control:
+        description: flow control
+        choices: ["none", "rts-cts"]
 
-  server_id:
-    description: Specify server id for UCS C3260 modular servers
-    default: 1
+    vp_putty_key_pad:
+        description: putty kepypad
+        choices: ["ESCN", "LINUX", "SCO", "VT100", "VT400", "XTERMR6"]
+
+    vp_redirection_after_post:
+        description: redirection after bios post
+        choices: ["Always Enable", "Bootloader", "platform-default"]
+
+    vp_legacy_os_redirection:
+        description: legacy os redirection
+        choices: ["Disabled", "Enabled", "disabled", "enabled", "platform-default"]
+
+    server_id:
+        description: Server Id to be specified for C3260 platforms
+        default: 1
 
 requirements:
     - 'imcsdk'
@@ -66,12 +75,10 @@ author: "Cisco Systems Inc(ucs-python@cisco.com)"
 
 
 EXAMPLES = '''
-- name: Set the boot order precision
-  cisco_imc_boot_order_precision:
-    boot_devices:
-      - {"order":"1", "device-type":"hdd", "name":"hdd"}
-      - {"order":"2", "device-type":"pxe", "name":"pxe"}
-      - {"order":"3", "device-type":"pxe", "name":"pxe2"}
+- name: enable console redirection for SOL
+  cisco_imc_bios_serial:
+    vp_console_redirection: "com0"
+    vp_baud_rate: "115200"
     ip: "192.168.1.1"
     username: "admin"
     password: "password"
@@ -82,21 +89,29 @@ RETURN = ''' # '''
 
 def _argument_mo():
     return dict(
-        boot_devices=dict(
-            required=True,
-            type='list'),
-        configured_boot_mode=dict(
+        vp_console_redirection=dict(
             type='str',
-            choices=["Legacy", "None", "Uefi"],
-            default="Legacy"),
-        reapply=dict(
+            choices=["com-0", "com-1", "disabled"]),
+        vp_terminal_type=dict(
             type='str',
-            choices=["yes", "no"],
-            default="no"),
-        reboot_on_update=dict(
+            choices=["pc-ansi", "platform-default", "vt-utf8", "vt100",
+                     "vt100-plus"]),
+        vp_baud_rate=dict(
             type='str',
-            choices=["yes", "no"],
-            default="no"),
+            choices=["115200", "19200", "38400", "57600", "9600"]),
+        vp_flow_control=dict(
+            type='str',
+            choices=["none", "rts-cts"]),
+        vp_putty_key_pad=dict(
+            type='str',
+            choices=["ESCN", "LINUX", "SCO", "VT100", "VT400", "XTERMR6"]),
+        vp_redirection_after_post=dict(
+            type='str',
+            choices=["Always Enable", "Bootloader", "platform-default"]),
+        vp_legacy_os_redirection=dict(
+            type='str',
+            choices=["Disabled", "Enabled", "disabled", "enabled",
+                     "platform-default"]),
         server_id=dict(type='int',
                        default=1),
     )
@@ -136,16 +151,16 @@ def _get_mo_params(params):
 
 
 def setup_module(server, module):
-    from imcsdk.apis.server.boot import boot_order_precision_set
-    from imcsdk.apis.server.boot import boot_order_precision_exists
+    from imcsdk.apis.server.bios import bios_serial_config
+    from imcsdk.apis.server.bios import bios_serial_exists
 
     ansible = module.params
     args_mo = _get_mo_params(ansible)
-    exists, mo = boot_order_precision_exists(handle=server, **args_mo)
+    exists, mo = bios_serial_exists(handle=server, **args_mo)
 
     if module.check_mode or exists:
         return not exists
-    boot_order_precision_set(handle=server, **args_mo)
+    bios_serial_config(handle=server, **args_mo)
 
     return True
 

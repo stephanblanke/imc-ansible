@@ -27,34 +27,30 @@ ANSIBLE_METADATA = {'metadata_version': '1.0',
 
 DOCUMENTATION = '''
 ---
-module: cisco_imc_boot_order_precision
-short_description: Sets boot order precision for a Cisco IMC server.
+module: cisco_imc_vmedia
+short_description: Configures vMedia on a Cisco IMC server
 version_added: "2.4"
 description:
-  - Sets boot order precision for a Cisco IMC server
+    - Configures vMedia mapping on a Cisco IMC server
 Input Params:
-  boot_devices:
-    description: dictionary {"order":"", "device-type": "", "name":""}
-    required: true
+    state:
+        description:
+         - if C(present), enables vMedia
+         - if C(absent), disables vMedia
+        choices: ['present', 'absent']
+        default: "present"
 
-  configured_boot_mode:
-    description: Configure boot mode
-    default: False
-    choices: ["Legacy", "None", "Uefi"]
+    encryption_state:
+        description: encryption state
+        choices: ['enabled', 'disabled']
 
-  reapply:
-    description: Configure reapply
-    default: "no"
-    choices: ["yes", "no"]
+    low_power_usb:
+        description: low power usb state
+        choices: ['enabled', 'disabled']
 
-  reboot_on_update:
-    description: Enable reboot on update
-    default: "no"
-    choices: ["yes", "no"]
-
-  server_id:
-    description: Specify server id for UCS C3260 modular servers
-    default: 1
+    server_id:
+        description: Server Id to be specified for C3260 platforms
+        default: 1
 
 requirements:
     - 'imcsdk'
@@ -66,12 +62,11 @@ author: "Cisco Systems Inc(ucs-python@cisco.com)"
 
 
 EXAMPLES = '''
-- name: Set the boot order precision
-  cisco_imc_boot_order_precision:
-    boot_devices:
-      - {"order":"1", "device-type":"hdd", "name":"hdd"}
-      - {"order":"2", "device-type":"pxe", "name":"pxe"}
-      - {"order":"3", "device-type":"pxe", "name":"pxe2"}
+- name: enable vMedia
+  cisco_imc_vmedia:
+    encryption_state: disabled
+    low_power_usb: disabled
+    state: present
     ip: "192.168.1.1"
     username: "admin"
     password: "password"
@@ -82,23 +77,22 @@ RETURN = ''' # '''
 
 def _argument_mo():
     return dict(
-        boot_devices=dict(
-            required=True,
-            type='list'),
-        configured_boot_mode=dict(
+        encryption_state=dict(
             type='str',
-            choices=["Legacy", "None", "Uefi"],
-            default="Legacy"),
-        reapply=dict(
+            choices=["disabled", "enabled"]),
+        low_power_usb=dict(
             type='str',
-            choices=["yes", "no"],
-            default="no"),
-        reboot_on_update=dict(
-            type='str',
-            choices=["yes", "no"],
-            default="no"),
+            choices=["disabled", "enabled"]),
         server_id=dict(type='int',
                        default=1),
+    )
+
+
+def _argument_custom():
+    return dict(
+        state=dict(default="present",
+                   choices=['present', 'absent'],
+                   type='str'),
     )
 
 
@@ -120,6 +114,7 @@ def _argument_connection():
 def _ansible_module_create():
     argument_spec = dict()
     argument_spec.update(_argument_mo())
+    argument_spec.update(_argument_custom())
     argument_spec.update(_argument_connection())
 
     return AnsibleModule(argument_spec,
@@ -136,17 +131,22 @@ def _get_mo_params(params):
 
 
 def setup_module(server, module):
-    from imcsdk.apis.server.boot import boot_order_precision_set
-    from imcsdk.apis.server.boot import boot_order_precision_exists
+    from imcsdk.apis.server.vmedia import vmedia_enable
+    from imcsdk.apis.server.vmedia import vmedia_disable
+    from imcsdk.apis.server.vmedia import vmedia_exists
 
     ansible = module.params
     args_mo = _get_mo_params(ansible)
-    exists, mo = boot_order_precision_exists(handle=server, **args_mo)
+    exists, mo = vmedia_exists(handle=server, **args_mo)
 
-    if module.check_mode or exists:
-        return not exists
-    boot_order_precision_set(handle=server, **args_mo)
-
+    if ansible["state"] == "present":
+        if module.check_mode or exists:
+            return not exists
+        vmedia_enable(handle=server, **args_mo)
+    else:
+        if module.check_mode or not exists:
+            return exists
+        vmedia_disable(server)
     return True
 
 

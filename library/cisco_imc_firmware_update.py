@@ -27,34 +27,65 @@ ANSIBLE_METADATA = {'metadata_version': '1.0',
 
 DOCUMENTATION = '''
 ---
-module: cisco_imc_boot_order_precision
-short_description: Sets boot order precision for a Cisco IMC server.
+module: cisco_imc_firmware_update
+short_description: Updates firmware via HUU utility
 version_added: "2.4"
 description:
-  - Sets boot order precision for a Cisco IMC server
+    - Updates CIMC firmware
 Input Params:
-  boot_devices:
-    description: dictionary {"order":"", "device-type": "", "name":""}
-    required: true
+    remote_share:
+        description: full path to the firmware image file
+        required: True
 
-  configured_boot_mode:
-    description: Configure boot mode
-    default: False
-    choices: ["Legacy", "None", "Uefi"]
+    share_type:
+        description: share protocol
+        required: True
+        choices: ["nfs", "www", "cifs"]
 
-  reapply:
-    description: Configure reapply
-    default: "no"
-    choices: ["yes", "no"]
+    remote_ip:
+        description: ip address of the remote host
+        required: True
 
-  reboot_on_update:
-    description: Enable reboot on update
-    default: "no"
-    choices: ["yes", "no"]
+    username:
+        description: remote host username
 
-  server_id:
-    description: Specify server id for UCS C3260 modular servers
-    default: 1
+    password:
+        description: remote host password
+
+    update_component:
+        description: component to be updated
+        default: "all"
+
+    stop_on_error:
+        description: stops update on error
+        default: "yes"
+        choices: ["yes", "no"]
+
+    verify_update:
+        description: verifies update
+        default: "yes"
+        choices: ["yes", "no"]
+
+    cimc_secure_boot:
+        description: secure boot flag
+        default: "yes"
+        choices: ["yes", "no"]
+
+    timeout:
+        description: timeout in minutes
+        default: 60
+
+    force:
+        description: if True, update without checking existing version
+        default: False
+
+    interval:
+        description: frequency of monitoring in seconds
+        default: 60
+
+    server_id:
+        description: Server Id to be specified for C3260 platforms
+        default: 1
 
 requirements:
     - 'imcsdk'
@@ -66,15 +97,11 @@ author: "Cisco Systems Inc(ucs-python@cisco.com)"
 
 
 EXAMPLES = '''
-- name: Set the boot order precision
-  cisco_imc_boot_order_precision:
-    boot_devices:
-      - {"order":"1", "device-type":"hdd", "name":"hdd"}
-      - {"order":"2", "device-type":"pxe", "name":"pxe"}
-      - {"order":"3", "device-type":"pxe", "name":"pxe2"}
-    ip: "192.168.1.1"
-    username: "admin"
-    password: "password"
+- name: update cimc firmware
+  cisco_imc_firmware_update:
+    remote_share: /ucs-c240m4-huu-3.0.2b.iso
+    share_type: www
+    remote_ip: 10.65.33.165
 '''
 
 RETURN = ''' # '''
@@ -82,23 +109,48 @@ RETURN = ''' # '''
 
 def _argument_mo():
     return dict(
-        boot_devices=dict(
+        remote_share=dict(
             required=True,
-            type='list'),
-        configured_boot_mode=dict(
+            type='str'),
+        share_type=dict(
+            required=True,
             type='str',
-            choices=["Legacy", "None", "Uefi"],
-            default="Legacy"),
-        reapply=dict(
+            choices=["nfs", "www", "cifs"]),
+        remote_ip=dict(
+            required=True,
+            type='str'),
+        username=dict(
+            type='str'),
+        password=dict(
+            type='str',
+            no_log=True),
+        update_component=dict(
+            type='str',
+            default='all'),
+        stop_on_error=dict(
             type='str',
             choices=["yes", "no"],
-            default="no"),
-        reboot_on_update=dict(
+            default="yes"),
+        verify_update=dict(
             type='str',
             choices=["yes", "no"],
-            default="no"),
-        server_id=dict(type='int',
-                       default=1),
+            default="yes"),
+        cimc_secure_boot=dict(
+            type='str',
+            choices=["yes", "no"],
+            default="yes"),
+        timeout=dict(
+            type='int',
+            default=60),
+        interval=dict(
+            type='int',
+            default=60),
+        force=dict(
+            type='bool',
+            default=False),
+        server_id=dict(
+            type='int',
+            default=60),
     )
 
 
@@ -136,16 +188,19 @@ def _get_mo_params(params):
 
 
 def setup_module(server, module):
-    from imcsdk.apis.server.boot import boot_order_precision_set
-    from imcsdk.apis.server.boot import boot_order_precision_exists
+    from imcsdk.utils.imcfirmwareinstall import firmware_update
+    from imcsdk.utils.imcfirmwareinstall import firmware_exists
+    from imcsdk.utils.imcfirmwareinstall import version_extract
 
     ansible = module.params
     args_mo = _get_mo_params(ansible)
-    exists, mo = boot_order_precision_exists(handle=server, **args_mo)
+    version = version_extract(args_mo['remote_share'])
+    exists, mo = firmware_exists(server, version,
+                                 args_mo['server_id'], args_mo['force'])
 
     if module.check_mode or exists:
         return not exists
-    boot_order_precision_set(handle=server, **args_mo)
+    firmware_update(handle=server, **args_mo)
 
     return True
 
