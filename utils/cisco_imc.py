@@ -10,8 +10,8 @@ class ImcConnection():
 
     @staticmethod
     def is_login_param(param):
-        return param in ["ip", "username", "password",
-                         "port", "secure", "proxy", "server"]
+        return param in ["imc_ip", "imc_username", "imc_password",
+                         "imc_port", "imc_secure", "imc_proxy", "imc_server"]
 
     def __init__(self, module):
         if HAS_IMCSDK is False:
@@ -23,7 +23,7 @@ class ImcConnection():
 
     def login(self):
         ansible = self.module.params
-        server = ansible.get('server')
+        server = ansible.get('imc_server')
         if server:
             return server
 
@@ -44,7 +44,7 @@ class ImcConnection():
         return server
 
     def logout(self):
-        server = self.module.params.get('server')
+        server = self.module.params.get('imc_server')
         if server:
             # we used a pre-existing handle from a task.
             # do not logout
