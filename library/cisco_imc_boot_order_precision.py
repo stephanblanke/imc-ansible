@@ -166,6 +166,34 @@ def setup(server, module):
 
 def main():
     from ansible.module_utils.cisco_imc import ImcConnection
+<<<<<<< HEAD
+=======
+    module = AnsibleModule(
+        argument_spec=dict(
+            boot_devices=dict(required=True, type='list'),
+            configured_boot_mode=dict(required=False, default="Legacy",
+                                      choices=["Legacy", "None", "Uefi"],
+                                      type='str'),
+            reapply=dict(required=False, default="no", choices=["yes", "no"],
+                         type="str"),
+            reboot_on_update=dict(required=False, default="no",
+                                  choices=["yes", "no"], type="str"),
+            server_id=dict(required=False, default=1, type='int'),
+
+            # ImcHandle
+            imc_server=dict(required=False, type='dict'),
+
+            # Imc server credentials
+            imc_ip=dict(required=False, type='str'),
+            imc_username=dict(required=False, default="admin", type='str'),
+            imc_password=dict(required=False, type='str', no_log=True),
+            imc_port=dict(required=False, default=None),
+            imc_secure=dict(required=False, default=None),
+            imc_proxy=dict(required=False, default=None)
+        ),
+        supports_check_mode=True
+    )
+>>>>>>> 408bfc50ed3ad9733335afe4958ea022df438983
 
     module = _ansible_module_create()
     conn = ImcConnection(module)
